@@ -11,8 +11,10 @@ import sys
 import time
 import urlparse
 
-aws_id = os.getenv('S3_ACCESS_KEY', 'AKIAIOSFODNN7EXAMPLE')
-key = os.getenv('S3_SECRET_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
+curlopts = sys.argv
+
+aws_id = os.getenv('S3_ACCESS_KEY')
+key = os.getenv('S3_SECRET_KEY')
 session_token = os.getenv('S3_SESSION_TOKEN')
 
 #url = "https://s3-us-west-2.amazonaws.com/hepcloud-cms/burt_test/hsimple.root"
@@ -33,7 +35,7 @@ def parse_url(url):
                'sa-east-1']
     parsed_url = urlparse.urlparse(url)
     netlocList = parsed_url.netloc.split(".", 1)
-    region = None
+    region = ''
 
     for r in regions:
         if r in netlocList[0]:
@@ -60,10 +62,6 @@ empty_hash = hashlib.sha256('').hexdigest()
 
 host, path, region = parse_url(url)
 
-if not region:
-    print "Error: NO REGION"
-    sys.exit(1)
-
 request = "GET\n%s\n\n" % path
 request += "host:%s\n" % host
 request += "x-amz-content-sha256:%s\n" % empty_hash
@@ -83,11 +81,11 @@ signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).he
 auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token,' \
     'Signature=%s' % (aws_id, scope, signature)
 
-curlopts = sys.argv[:] + ["-H", '%s' % auth_header]
-curlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
-curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
-curlopts += ["-H", 'x-amz-date: %s' % timestamp]
+if (url and region and aws_id and key and session_token):
+    curlopts += ["-H", '%s' % auth_header]
+    curlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
+    curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
+    curlopts += ["-H", 'x-amz-date: %s' % timestamp]
 
 os.execv('/usr/bin/curl', curlopts)
-
 
