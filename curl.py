@@ -71,15 +71,11 @@ if session_token:
 
 amz_headers_sorted = sorted(amz_headers.items())
 
-for x in amz_headers_sorted:
-    headerlist += "%s;" % x[0]
-headerlist = headerlist.strip(';')
+headerlist = ';'.join([x[0] for x in amz_headers_sorted])
 
 request = "GET\n%s\n\n" % path
-for k, v in amz_headers_sorted:
-    request += "%s:%s\n" % (k, v)
-request += "\n"
-
+request += '\n'.join(["%s:%s" % (k,v) for (k,v) in amz_headers_sorted])
+request += "\n\n"
 request += headerlist
 request += "\n" + empty_hash
 
