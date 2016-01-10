@@ -62,7 +62,7 @@ empty_hash = hashlib.sha256('').hexdigest()
 
 host, path, region = parse_url(url)
 amz_headers = {}
-headerlist = ''
+
 amz_headers['host'] = host
 amz_headers['x-amz-content-sha256'] = empty_hash
 amz_headers['x-amz-date'] = timestamp
