@@ -61,14 +61,26 @@ timestamp = time.strftime("%Y%m%dT%H%M%SZ", now)
 empty_hash = hashlib.sha256('').hexdigest()
 
 host, path, region = parse_url(url)
+amz_headers = {}
+headerlist = ''
+amz_headers['host'] = host
+amz_headers['x-amz-content-sha256'] = empty_hash
+amz_headers['x-amz-date'] = timestamp
+amz_headers['x-amz-security-token'] = session_token
+
+amz_headers_sorted = sorted(amz_headers.items())
+
+for x in amz_headers_sorted:
+    headerlist += "%s;" % x[0]
+headerlist = headerlist.strip(';')
 
 request = "GET\n%s\n\n" % path
-request += "host:%s\n" % host
-request += "x-amz-content-sha256:%s\n" % empty_hash
-request += "x-amz-date:%s\n" % timestamp
-request += "x-amz-security-token:%s\n\n" % session_token
-request += "host;x-amz-content-sha256;x-amz-date;x-amz-security-token\n"
-request += empty_hash
+for k, v in amz_headers_sorted:
+    request += "%s:%s\n" % (k, v)
+request += "\n"
+
+request += headerlist
+request += "\n" + empty_hash
 
 scope = datestamp + "/%s/s3/aws4_request" % region
 
@@ -78,8 +90,8 @@ stringToSign = 'AWS4-HMAC-SHA256\n%s\n%s\n%s' % (timestamp, scope,
 signKey = getSignatureKey(key, datestamp, region, 's3')
 signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).hexdigest()
 
-auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token,' \
-    'Signature=%s' % (aws_id, scope, signature)
+auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s,' % (aws_id, scope, headerlist)
+auth_header += 'Signature=%s' % signature
 
 if (url and region and aws_id and key and session_token):
     curlopts += ["-H", '%s' % auth_header]
