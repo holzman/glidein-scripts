@@ -1,17 +1,28 @@
 #!/usr/bin/python
+#
+# curl.py
+#  - If the environment variables S3_ACCESS_KEY, S3_SECRET_KEY, and S3_SESSION_TOKEN are set,
+#    this script builds proper authorization headers and calls curl against Amazon S3.
 
 import hashlib
-import urlparse
-import time
 import hmac
 import os
 import sys
+import time
+import urlparse
 
 aws_id = os.getenv('S3_ACCESS_KEY', 'AKIAIOSFODNN7EXAMPLE')
 key = os.getenv('S3_SECRET_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
 session_token = os.getenv('S3_SESSION_TOKEN')
 
-url = "https://s3-us-west-2.amazonaws.com/hepcloud-cms/burt_test/hsimple.root"
+#url = "https://s3-us-west-2.amazonaws.com/hepcloud-cms/burt_test/hsimple.root"
+url = ''
+
+for arg in sys.argv[1:]:
+    # a little hacky - assumes the first URI in the options string is the destination
+    if arg.startswith("http://") or arg.startswith("https://"):
+        url = arg
+        break
 
 def parse_url(url):
     # only parsing non-vhost style:
@@ -29,10 +40,6 @@ def parse_url(url):
             region = r
             break
 
-    if not region:
-        print "NO REGION"
-        sys.exit(1)
-
     return (parsed_url.netloc, parsed_url.path, region)
 
 def sign(key, msg):
@@ -46,13 +53,16 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     return kSigning
 
 now = time.gmtime()
-
 datestamp = time.strftime("%Y%m%d", now)
 timestamp = time.strftime("%Y%m%dT%H%M%SZ", now)
 
 empty_hash = hashlib.sha256('').hexdigest()
 
 host, path, region = parse_url(url)
+
+if not region:
+    print "Error: NO REGION"
+    sys.exit(1)
 
 request = "GET\n%s\n\n" % path
 request += "host:%s\n" % host
@@ -73,10 +83,11 @@ signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).he
 auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token,' \
     'Signature=%s' % (aws_id, scope, signature)
 
-cmd = 'curl -v %s ' % url + \
-    '-H "%s" ' % auth_header + \
-    '-H "x-amz-content-sha256: %s" ' % empty_hash + \
-    '-H "x-amz-security-token: %s" ' % session_token + \
-    '-H "x-amz-date: %s" ' % timestamp
+curlopts = sys.argv[:] + ["-H", '%s' % auth_header]
+curlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
+curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
+curlopts += ["-H", 'x-amz-date: %s' % timestamp]
 
-print cmd
+os.execv('/usr/bin/curl', curlopts)
+
+
