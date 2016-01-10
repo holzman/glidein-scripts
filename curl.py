@@ -66,7 +66,8 @@ headerlist = ''
 amz_headers['host'] = host
 amz_headers['x-amz-content-sha256'] = empty_hash
 amz_headers['x-amz-date'] = timestamp
-amz_headers['x-amz-security-token'] = session_token
+if session_token:
+    amz_headers['x-amz-security-token'] = session_token
 
 amz_headers_sorted = sorted(amz_headers.items())
 
@@ -93,10 +94,11 @@ signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).he
 auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s,' % (aws_id, scope, headerlist)
 auth_header += 'Signature=%s' % signature
 
-if (url and region and aws_id and key and session_token):
+if (url and region and aws_id and key):
     curlopts += ["-H", '%s' % auth_header]
     curlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
-    curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
+    if session_token:
+        curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
     curlopts += ["-H", 'x-amz-date: %s' % timestamp]
 
 os.execv('/usr/bin/curl', curlopts)
