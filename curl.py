@@ -13,8 +13,8 @@ import urlparse
 
 curlopts = sys.argv
 
-aws_id = os.getenv('S3_ACCESS_KEY')
-key = os.getenv('S3_SECRET_KEY')
+aws_id = os.getenv('S3_ACCESS_KEY', '')
+key = os.getenv('S3_SECRET_KEY', '')
 session_token = os.getenv('S3_SESSION_TOKEN')
 
 #url = "https://s3-us-west-2.amazonaws.com/hepcloud-cms/burt_test/hsimple.root"
@@ -97,5 +97,26 @@ if (url and region and aws_id and key):
         curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
     curlopts += ["-H", 'x-amz-date: %s' % timestamp]
 
-os.execv('/usr/bin/curl', curlopts)
+def find_executable(executable, paths):
+    for path in paths.split(os.pathsep):
+        fullpath = os.path.join(path, executable)
+        if os.access(fullpath, os.X_OK):
+            return fullpath
+    print '%s: Command not found.' % executable
+    sys.exit(1)
 
+def run_wrapped_executable(executable, options):
+    current_path = os.path.dirname(sys.argv[0])
+    paths = os.environ['PATH'].split(os.pathsep)
+    if current_path not in paths:
+        current_path = os.getcwd()
+    try:
+        paths.remove(current_path)
+    except:
+        pass # must not be there to begin with ..
+
+    path_env = os.pathsep.join(paths)
+    cmd = find_executable(executable, path_env)
+    os.execv(cmd, options)
+
+run_wrapped_executable('curl', curlopts)
