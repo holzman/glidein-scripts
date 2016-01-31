@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # curl.py
 #  - If the environment variables S3_ACCESS_KEY, S3_SECRET_KEY, and S3_SESSION_TOKEN are set,
@@ -41,6 +41,9 @@ def parse_url(url):
         if r in netlocList[0]:
             region = r
             break
+
+    if netlocList[0] == 's3':
+        region = 'us-east-1'
 
     return (parsed_url.netloc, parsed_url.path, region)
 
@@ -96,6 +99,7 @@ if (url and region and aws_id and key):
     if session_token:
         curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
     curlopts += ["-H", 'x-amz-date: %s' % timestamp]
+    curlopts += ["--retry", "5"]
 
 def find_executable(executable, paths):
     for path in paths.split(os.pathsep):
