@@ -7,15 +7,24 @@
 import hashlib
 import hmac
 import os
+import requests
 import sys
 import time
 import urlparse
 
 curlopts = sys.argv
 
-aws_id = os.getenv('S3_ACCESS_KEY', '')
-key = os.getenv('S3_SECRET_KEY', '')
-session_token = os.getenv('S3_SESSION_TOKEN')
+try:
+    r = requests.get("http://169.254.169.254/latest/meta-data/iam/security-credentials/AllowS3_UploadDownload")
+    j = r.json()
+
+    aws_id = j['AccessKeyId']
+    key = j['SecretAccessKey']
+    session_token =  j['Token']
+except:
+    aws_id = os.getenv('S3_ACCESS_KEY', '')
+    key = os.getenv('S3_SECRET_KEY', '')
+    session_token = os.getenv('S3_SESSION_TOKEN')
 
 #url = "https://s3-us-west-2.amazonaws.com/hepcloud-cms/burt_test/hsimple.root"
 url = ''
