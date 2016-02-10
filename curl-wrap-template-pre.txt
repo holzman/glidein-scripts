@@ -1,0 +1,17 @@
+#!/bin/bash
+
+glidein_config=$1
+
+#if [ "${GLIDEIN_Site}" = "T3_US_HEPCloud" ];
+if [ 1 = 1 ];
+then
+    curldir=$(mktemp -d)
+
+    condor_vars_file=`grep -i "^CONDOR_VARS_FILE " $glidein_config | awk '{print $2}'` 
+    add_config_line_source=`grep '^ADD_CONFIG_LINE_SOURCE ' $glidein_config | awk '{print $2}'`
+    source $add_config_line_source 
+    add_condor_vars_line GLIDEIN_CURL_PATH "S" "-" "+" "Y" "Y" "@"
+    add_config_line GLIDEIN_CURL_PATH "$curldir"
+
+
+    cat <<'EOF' > ${curldir}/curl
