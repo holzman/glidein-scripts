@@ -109,6 +109,7 @@ if (url and region and aws_id and key):
         curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
     curlopts += ["-H", 'x-amz-date: %s' % timestamp]
     curlopts += ["--retry", "5"]
+    curlopts += ["-m", "3600" ] # timeout after 1h
 
 def find_executable(executable, paths):
     for path in paths.split(os.pathsep):
