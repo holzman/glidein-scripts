@@ -7,8 +7,10 @@
 import hashlib
 import hmac
 import os
+import random
 import requests
 import sys
+import subprocess
 import time
 import urlparse
 
@@ -66,50 +68,54 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     kSigning = hmac.new(kService, "aws4_request".encode("utf-8"), hashlib.sha256).digest()
     return kSigning
 
-now = time.gmtime()
-datestamp = time.strftime("%Y%m%d", now)
-timestamp = time.strftime("%Y%m%dT%H%M%SZ", now)
+def getCurlOpts(url):
+    now = time.gmtime()
+    datestamp = time.strftime("%Y%m%d", now)
+    timestamp = time.strftime("%Y%m%dT%H%M%SZ", now)
 
-empty_hash = hashlib.sha256('').hexdigest()
+    empty_hash = hashlib.sha256('').hexdigest()
 
-host, path, region = parse_url(url)
-amz_headers = {}
+    host, path, region = parse_url(url)
+    amz_headers = {}
 
-amz_headers['host'] = host
-amz_headers['x-amz-content-sha256'] = empty_hash
-amz_headers['x-amz-date'] = timestamp
-if session_token:
-    amz_headers['x-amz-security-token'] = session_token
-
-amz_headers_sorted = sorted(amz_headers.items())
-
-headerlist = ';'.join([x[0] for x in amz_headers_sorted])
-
-request = "GET\n%s\n\n" % path
-request += '\n'.join(["%s:%s" % (k,v) for (k,v) in amz_headers_sorted])
-request += "\n\n"
-request += headerlist
-request += "\n" + empty_hash
-
-scope = datestamp + "/%s/s3/aws4_request" % region
-
-stringToSign = 'AWS4-HMAC-SHA256\n%s\n%s\n%s' % (timestamp, scope,
-                                                   hashlib.sha256(request).hexdigest())
-
-signKey = getSignatureKey(key, datestamp, region, 's3')
-signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).hexdigest()
-
-auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s,' % (aws_id, scope, headerlist)
-auth_header += 'Signature=%s' % signature
-
-if (url and region and aws_id and key):
-    curlopts += ["-H", '%s' % auth_header]
-    curlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
+    amz_headers['host'] = host
+    amz_headers['x-amz-content-sha256'] = empty_hash
+    amz_headers['x-amz-date'] = timestamp
     if session_token:
-        curlopts += ["-H", 'x-amz-security-token: %s' % session_token]
-    curlopts += ["-H", 'x-amz-date: %s' % timestamp]
-    curlopts += ["--retry", "5"]
-    curlopts += ["-m", "3600" ] # timeout after 1h
+        amz_headers['x-amz-security-token'] = session_token
+
+    amz_headers_sorted = sorted(amz_headers.items())
+
+    headerlist = ';'.join([x[0] for x in amz_headers_sorted])
+
+    request = "GET\n%s\n\n" % path
+    request += '\n'.join(["%s:%s" % (k,v) for (k,v) in amz_headers_sorted])
+    request += "\n\n"
+    request += headerlist
+    request += "\n" + empty_hash
+
+    scope = datestamp + "/%s/s3/aws4_request" % region
+
+    stringToSign = 'AWS4-HMAC-SHA256\n%s\n%s\n%s' % (timestamp, scope,
+                                                       hashlib.sha256(request).hexdigest())
+
+    signKey = getSignatureKey(key, datestamp, region, 's3')
+    signature = hmac.new(signKey, (stringToSign).encode('utf-8'), hashlib.sha256).hexdigest()
+
+    auth_header = 'Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s,' % (aws_id, scope, headerlist)
+    auth_header += 'Signature=%s' % signature
+
+    newcurlopts = []
+    if (url and region and aws_id and key):
+        newcurlopts += ["-H", '%s' % auth_header]
+        newcurlopts += ["-H", 'x-amz-content-sha256: %s' % empty_hash]
+        if session_token:
+            newcurlopts += ["-H", 'x-amz-security-token: %s' % session_token]
+        newcurlopts += ["-H", 'x-amz-date: %s' % timestamp]
+        newcurlopts += ["--retry", "5"]
+        newcurlopts += ["-m", "3600" ] # timeout after 1h
+
+    return newcurlopts
 
 def find_executable(executable, paths):
     for path in paths.split(os.pathsep):
@@ -131,6 +137,23 @@ def run_wrapped_executable(executable, options):
 
     path_env = os.pathsep.join(paths)
     cmd = find_executable(executable, path_env)
-    os.execv(cmd, options)
+    return subprocess.call([cmd] + options[1:])
 
-run_wrapped_executable('curl', curlopts)
+cap = 600
+base_sleep_time = 1
+attempt = 1
+
+while 1:
+    rc = run_wrapped_executable('curl', curlopts+getCurlOpts(url))
+    if (rc == 0): sys.exit(rc)
+
+    sleep_time = random.uniform(0, base_sleep_time) # exponential backoff + jitter
+
+    print "Curl try #%d failed; sleeping %f s" % (attempt, sleep_time)
+
+    time.sleep(sleep_time)
+    attempt += 1
+    base_sleep_time *= 2
+
+    if (base_sleep_time > cap): sys.exit(rc)
+
