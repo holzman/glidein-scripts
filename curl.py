@@ -142,12 +142,15 @@ def run_wrapped_executable(executable, options):
 cap = 600
 base_sleep_time = 1
 attempt = 1
+start_time = time.time()
 
 while 1:
     rc = run_wrapped_executable('curl', curlopts+getCurlOpts(url))
     if (rc == 0): sys.exit(rc)
 
     sleep_time = random.uniform(0, base_sleep_time) # exponential backoff + jitter
+
+    if (time.time() - start_time) > 3000: sys.exit(rc) # overall timeout (in case of slow xfer)
 
     print "Curl try #%d failed; sleeping %f s" % (attempt, sleep_time)
 
